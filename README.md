@@ -17,9 +17,15 @@ A personal iPhone finance app. All data stays on the phone (SwiftData), with no 
 
 ## Build (no Mac needed)
 
-1. Push this folder to a GitHub repository, private or public.
-2. Open **Actions → Build IPA → Run workflow**. When it finishes, download the **PulseJar-ipa** artifact and unzip it to get `PulseJar.ipa`.
-3. Install it on the iPhone with SideStore, which signs it with your free Apple ID. Refresh it in SideStore at least every 7 days. Your data is kept across refreshes.
+Every push to `main` (or **Actions → Build IPA → Run workflow**) runs the parser tests, builds an unsigned `PulseJar.ipa` with version `1.0.<run number>`, and publishes it as a GitHub Release (`build-<run number>`) together with a SideStore source file, `apps.json`.
+
+Install and update through SideStore (the repository must be public so SideStore can download the release):
+
+1. In SideStore, open **Sources → +** and add:
+   `https://github.com/YaqoubYousef/pulsejar/releases/latest/download/apps.json`
+2. Install PulseJar from that source. SideStore signs it with your free Apple ID.
+3. After a new push, open SideStore and pull to refresh. The new build appears under **Updates**.
+4. Refresh the app in SideStore at least every 7 days. Your data is kept across refreshes and updates.
 
 Parser tests locally (needs Swift or Docker):
 
