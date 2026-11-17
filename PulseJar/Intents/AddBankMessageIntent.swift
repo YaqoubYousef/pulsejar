@@ -21,7 +21,7 @@ struct AddBankMessageIntent: AppIntent {
     }
 }
 
-struct FinanceShortcuts: AppShortcutsProvider {
+struct PulseJarShortcuts: AppShortcutsProvider {
     static var appShortcuts: [AppShortcut] {
         AppShortcut(
             intent: AddBankMessageIntent(),

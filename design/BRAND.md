@@ -23,7 +23,7 @@ Every app keeps **Night** as its background and picks **one earthy accent** for 
 
 ## The maker's seal
 
-Source: [brand/seal.svg](brand/seal.svg). In code: `MakerSeal` in `FinanceApp/Views/BrandViews.swift`.
+Source: [brand/seal.svg](brand/seal.svg). In code: `MakerSeal` in `PulseJar/Views/BrandViews.swift`.
 
 - **Two figures with raised arms**: the initials **YY**, and two people celebrating.
 - **Sand and clay**: the two sides of one person.

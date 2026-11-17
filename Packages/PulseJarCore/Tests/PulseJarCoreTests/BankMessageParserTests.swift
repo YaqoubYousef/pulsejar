@@ -1,5 +1,5 @@
 import XCTest
-@testable import FinanceCore
+@testable import PulseJarCore
 
 final class BankMessageParserTests: XCTestCase {
     private func decimal(_ text: String) -> Decimal {

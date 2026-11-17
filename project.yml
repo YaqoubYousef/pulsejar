@@ -1,4 +1,4 @@
-name: Finance
+name: PulseJar
 options:
   bundleIdPrefix: com.personal
   deploymentTarget:
@@ -6,21 +6,21 @@ options:
   createIntermediateGroups: true
 
 packages:
-  FinanceCore:
-    path: Packages/FinanceCore
+  PulseJarCore:
+    path: Packages/PulseJarCore
 
 targets:
-  Finance:
+  PulseJar:
     type: application
     platform: iOS
     sources:
-      - path: FinanceApp
+      - path: PulseJar
     dependencies:
-      - package: FinanceCore
+      - package: PulseJarCore
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: com.personal.finance
-        PRODUCT_NAME: Finance
+        PRODUCT_BUNDLE_IDENTIFIER: com.personal.pulsejar
+        PRODUCT_NAME: PulseJar
         MARKETING_VERSION: "1.0"
         CURRENT_PROJECT_VERSION: "1"
         SWIFT_VERSION: "5.0"
@@ -36,7 +36,7 @@ targets:
         CODE_SIGN_STYLE: Automatic
 
 schemes:
-  Finance:
+  PulseJar:
     build:
       targets:
-        Finance: all
+        PulseJar: all

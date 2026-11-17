@@ -1,6 +1,6 @@
 import Foundation
 import SwiftData
-import FinanceCore
+import PulseJarCore
 
 struct IngestOutcome: Identifiable {
     enum Status {

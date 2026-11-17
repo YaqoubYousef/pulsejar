@@ -11,7 +11,7 @@ struct SettingsView: View {
     @State private var message: String?
 
     private var backupFilename: String {
-        "finance-backup-\(Date.now.formatted(.iso8601.year().month().day()))"
+        "pulsejar-backup-\(Date.now.formatted(.iso8601.year().month().day()))"
     }
 
     var body: some View {

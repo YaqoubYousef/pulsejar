@@ -1,5 +1,5 @@
 import Foundation
-import FinanceCore
+import PulseJarCore
 
 enum Money {
     static let scale: Decimal = 1000

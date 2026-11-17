@@ -2,7 +2,7 @@ import SwiftData
 import SwiftUI
 
 @main
-struct FinanceApp: App {
+struct PulseJarApp: App {
     var body: some Scene {
         WindowGroup {
             LaunchContainer()
