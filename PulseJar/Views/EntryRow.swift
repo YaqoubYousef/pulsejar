@@ -9,11 +9,9 @@ struct EntryRow: View {
         perspective.map { entry.signedAmount(for: $0) } ?? entry.signedAmount
     }
 
-    private var amountText: String {
-        if entry.kind == .transfer, perspective == nil {
-            return entry.amount.money()
-        }
-        return signed.signedMoney()
+    /// Transfers shown without an account in mind have no direction, so no sign.
+    private var showsSign: Bool {
+        !(entry.kind == .transfer && perspective == nil)
     }
 
     private var amountColor: Color {
@@ -21,18 +19,14 @@ struct EntryRow: View {
             return .secondary
         }
         if entry.kind == .transfer, perspective == nil {
-            return .primary
+            return .secondary
         }
-        return signed < 0 ? .primary : .green
+        return signed < 0 ? .primary : Theme.positive
     }
 
     var body: some View {
         HStack(spacing: 12) {
-            Image(systemName: entry.iconName)
-                .font(.callout)
-                .foregroundStyle(entry.tint)
-                .frame(width: 34, height: 34)
-                .background(entry.tint.opacity(0.15), in: Circle())
+            IconBadge(systemName: entry.iconName, tint: entry.tint, size: 34)
 
             VStack(alignment: .leading, spacing: 2) {
                 Text(entry.displayTitle)
@@ -46,14 +40,13 @@ struct EntryRow: View {
             Spacer(minLength: 8)
 
             VStack(alignment: .trailing, spacing: 2) {
-                Text(amountText)
-                    .monospacedDigit()
+                MoneyText(amount: showsSign ? signed : entry.amount, signed: showsSign)
                     .foregroundStyle(amountColor)
                     .strikethrough(entry.status == .reversed)
                 if entry.status == .needsReview {
                     Text("Review")
                         .font(.caption2.bold())
-                        .foregroundStyle(.orange)
+                        .foregroundStyle(Theme.accent)
                 } else if entry.status == .reversed {
                     Text("Reversed")
                         .font(.caption2)
@@ -61,6 +54,7 @@ struct EntryRow: View {
                 }
             }
         }
+        .accessibilityElement(children: .combine)
     }
 }
 

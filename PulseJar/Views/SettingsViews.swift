@@ -9,6 +9,7 @@ struct SettingsView: View {
     @State private var importing = false
     @State private var pendingBackup: BackupFile?
     @State private var message: String?
+    @AppStorage(Appearance.storageKey) private var appearance: Appearance = .dark
 
     private var backupFilename: String {
         "pulsejar-backup-\(Date.now.formatted(.iso8601.year().month().day()))"
@@ -16,6 +17,16 @@ struct SettingsView: View {
 
     var body: some View {
         List {
+            Section("Appearance") {
+                Picker("Theme", selection: $appearance) {
+                    ForEach(Appearance.allCases) { option in
+                        Text(option.title).tag(option)
+                    }
+                }
+                .pickerStyle(.segmented)
+            }
+            .cardRows()
+
             Section("Bank messages") {
                 NavigationLink {
                     ShortcutsGuideView()
@@ -33,6 +44,7 @@ struct SettingsView: View {
                     Label("Merchant categories", systemImage: "storefront")
                 }
             }
+            .cardRows()
 
             Section("Organize") {
                 NavigationLink {
@@ -41,6 +53,7 @@ struct SettingsView: View {
                     Label("Categories", systemImage: "tag")
                 }
             }
+            .cardRows()
 
             Section {
                 Button {
@@ -63,12 +76,14 @@ struct SettingsView: View {
             } footer: {
                 Text("Everything is stored only on this iPhone. Export a backup to Files now and then — deleting the app deletes its data.")
             }
+            .cardRows()
 
             Section {
                 MakerFooter()
                     .listRowBackground(Color.clear)
             }
         }
+        .themedBackground()
         .navigationTitle("Settings")
         .fileExporter(isPresented: $exporting, document: exportDocument, contentType: .json, defaultFilename: backupFilename) { result in
             if case .failure(let error) = result {
@@ -133,11 +148,14 @@ struct ShortcutsGuideView: View {
             } footer: {
                 Text("Every bank SMS is now recorded. Purchases and salary are saved directly; CliQ transfers wait in Review. Messages that aren't bank transactions are ignored.")
             }
+            .cardRows()
             Section("Tips") {
                 Text("If your bank sends English messages too, add a second automation with a word they always contain, such as JOD.")
                 Text("Old messages can be added with Settings → Paste bank messages. Duplicates are ignored.")
             }
+            .cardRows()
         }
+        .themedBackground()
         .navigationTitle("Automatic recording")
     }
 
@@ -165,13 +183,16 @@ struct PasteMessagesView: View {
             } footer: {
                 Text("Paste one or many bank messages. They're processed oldest first, and messages already recorded are skipped.")
             }
+            .cardRows()
             Section {
                 Button("Add messages") {
                     outcomes = MessageIngestor.ingestMany(text: text, context: context)
                     text = ""
+                    Haptics.success()
                 }
                 .disabled(text.trimmed.isEmpty)
             }
+            .cardRows()
             if !outcomes.isEmpty {
                 Section("Result") {
                     ForEach(outcomes) { outcome in
@@ -179,8 +200,10 @@ struct PasteMessagesView: View {
                             .font(.footnote)
                     }
                 }
+                .cardRows()
             }
         }
+        .themedBackground()
         .navigationTitle("Paste bank messages")
     }
 
@@ -210,7 +233,9 @@ struct MerchantRulesView: View {
                 }
                 try? context.save()
             }
+            .listRowBackground(Theme.card)
         }
+        .themedBackground()
         .overlay {
             if rules.isEmpty {
                 ContentUnavailableView(

@@ -19,12 +19,16 @@ struct CategoriesView: View {
                 }
                 .pickerStyle(.segmented)
             }
+            .listRowBackground(Color.clear)
             Section {
                 ForEach(visible) { category in
                     NavigationLink {
                         CategoryEditView(category: category, kind: category.kind)
                     } label: {
-                        Label(category.name, systemImage: category.icon)
+                        HStack(spacing: 12) {
+                            IconBadge(systemName: category.icon, tint: category.kind == .income ? Theme.positive : Theme.accent, size: 30)
+                            Text(category.name)
+                        }
                     }
                 }
                 .onDelete { offsets in
@@ -45,7 +49,9 @@ struct CategoriesView: View {
             } footer: {
                 Text("Deleting a category keeps its transactions, without a category.")
             }
+            .cardRows()
         }
+        .themedBackground()
         .navigationTitle("Categories")
         .toolbar {
             EditButton()
@@ -92,19 +98,28 @@ struct CategoryEditView: View {
             Section {
                 TextField("Name", text: $name)
             }
+            .cardRows()
             Section("Icon") {
                 LazyVGrid(columns: Array(repeating: GridItem(.flexible()), count: 6), spacing: 14) {
                     ForEach(Self.icons, id: \.self) { symbol in
                         Image(systemName: symbol)
                             .font(.title3)
                             .frame(width: 40, height: 40)
-                            .background(symbol == icon ? Color.accentColor.opacity(0.2) : Color.clear, in: Circle())
-                            .onTapGesture { icon = symbol }
+                            .foregroundStyle(symbol == icon ? Color.white : Theme.accent)
+                            .background(symbol == icon ? Theme.accent : Color.clear, in: Circle())
+                            .contentShape(Circle())
+                            .onTapGesture {
+                                Haptics.tap()
+                                icon = symbol
+                            }
+                            .accessibilityAddTraits(symbol == icon ? [.isButton, .isSelected] : .isButton)
                     }
                 }
                 .padding(.vertical, 6)
             }
+            .cardRows()
         }
+        .themedBackground()
         .navigationTitle(category == nil ? "New category" : "Edit category")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {

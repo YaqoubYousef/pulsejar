@@ -1,5 +1,12 @@
+import Charts
 import SwiftData
 import SwiftUI
+
+private struct BalancePoint: Identifiable {
+    let day: Date
+    let balance: Double
+    var id: Date { day }
+}
 
 struct AccountDetailView: View {
     let account: Account
@@ -13,6 +20,22 @@ struct AccountDetailView: View {
         entries.filter { $0.account == account || $0.toAccount == account }
     }
 
+    /// End-of-day balance for the last 30 days.
+    private var history: [BalancePoint] {
+        let calendar = Calendar.current
+        let today = calendar.startOfDay(for: .now)
+        let relevant = accountEntries
+        return (0..<30).reversed().compactMap { offset in
+            guard let day = calendar.date(byAdding: .day, value: -offset, to: today),
+                  let endOfDay = calendar.date(byAdding: DateComponents(day: 1, second: -1), to: day)
+            else {
+                return nil
+            }
+            let balance = Ledger.balance(of: account, in: relevant, asOf: endOfDay)
+            return BalancePoint(day: day, balance: NSDecimalNumber(decimal: balance).doubleValue)
+        }
+    }
+
     var body: some View {
         List {
             Section {
@@ -20,12 +43,15 @@ struct AccountDetailView: View {
                     Text(account.kind.title + (account.bankMask.map { " · \($0)" } ?? ""))
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
-                    Text(Ledger.balance(of: account, in: entries).money(account.currency))
-                        .font(.largeTitle.bold())
-                        .monospacedDigit()
+                    MoneyText(amount: Ledger.balance(of: account, in: entries), showsCurrency: true, currency: account.currency, size: 34, weight: .bold)
+                    if accountEntries.count > 1 {
+                        balanceChart
+                            .padding(.top, 8)
+                    }
                 }
                 .padding(.vertical, 4)
             }
+            .cardRows()
 
             if let mismatch = Ledger.mismatch(for: account, in: entries) {
                 Section {
@@ -42,8 +68,10 @@ struct AccountDetailView: View {
                         adjustment.account = account
                         adjustment.note = "Matched to the bank balance"
                         try? context.save()
+                        Haptics.success()
                     }
                 }
+                .cardRows()
             }
 
             Section("Transactions") {
@@ -55,7 +83,9 @@ struct AccountDetailView: View {
                     EntryLink(entry: entry, perspective: account)
                 }
             }
+            .cardRows()
         }
+        .themedBackground()
         .navigationTitle(account.name)
         .toolbar {
             ToolbarItemGroup(placement: .primaryAction) {
@@ -73,6 +103,39 @@ struct AccountDetailView: View {
         .sheet(isPresented: $addingEntry) {
             NavigationStack { EntryEditView(mode: .add, defaultAccount: account) }
         }
+    }
+
+    private var balanceChart: some View {
+        let points = history
+        let values = points.map(\.balance)
+        let low = values.min() ?? 0
+        let high = values.max() ?? 0
+        let padding = max((high - low) * 0.15, 1)
+
+        return VStack(alignment: .leading, spacing: 4) {
+            Chart(points) { point in
+                AreaMark(
+                    x: .value("Day", point.day),
+                    yStart: .value("Floor", low - padding),
+                    yEnd: .value("Balance", point.balance)
+                )
+                .foregroundStyle(Theme.accent.opacity(0.15))
+                .interpolationMethod(.monotone)
+                LineMark(x: .value("Day", point.day), y: .value("Balance", point.balance))
+                    .foregroundStyle(Theme.accent)
+                    .lineStyle(StrokeStyle(lineWidth: 2, lineCap: .round))
+                    .interpolationMethod(.monotone)
+            }
+            .chartYScale(domain: (low - padding)...(high + padding))
+            .chartXAxis(.hidden)
+            .chartYAxis(.hidden)
+            .frame(height: 70)
+            Text("Last 30 days")
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("Balance over the last 30 days, from \(Decimal(values.first ?? 0).spokenMoney()) to \(Decimal(values.last ?? 0).spokenMoney())")
     }
 }
 
@@ -109,6 +172,7 @@ struct AccountEditView: View {
                     }
                 }
             }
+            .cardRows()
             Section {
                 TextField("Account number in messages, e.g. 1600*1380", text: $bankMask)
                     .textInputAutocapitalization(.never)
@@ -116,12 +180,14 @@ struct AccountEditView: View {
             } footer: {
                 Text("Bank messages with this number are recorded in this account. Leave empty for cash.")
             }
+            .cardRows()
             Section {
                 TextField("Opening balance", text: $openingText)
                     .keyboardType(.decimalPad)
             } footer: {
                 Text("The balance before the first transaction in the app. For accounts created from a bank message this is set automatically.")
             }
+            .cardRows()
             if account != nil {
                 Section {
                     Toggle("Hide account", isOn: $isArchived)
@@ -129,8 +195,10 @@ struct AccountEditView: View {
                         confirmingDelete = true
                     }
                 }
+                .cardRows()
             }
         }
+        .themedBackground()
         .navigationTitle(account == nil ? "New account" : "Edit account")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {

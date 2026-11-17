@@ -34,6 +34,7 @@ struct LaunchContainer: View {
 
 struct RootView: View {
     @Query private var entries: [LedgerEntry]
+    @AppStorage(Appearance.storageKey) private var appearance: Appearance = .dark
 
     private var pendingCount: Int {
         entries.filter { $0.status == .needsReview }.count
@@ -45,15 +46,18 @@ struct RootView: View {
                 .tabItem { Label("Home", systemImage: "house") }
             NavigationStack { EntriesView() }
                 .tabItem { Label("Transactions", systemImage: "list.bullet") }
-            NavigationStack { ReviewView() }
-                .tabItem { Label("Review", systemImage: "tray") }
                 .badge(pendingCount)
             NavigationStack { PeopleView() }
                 .tabItem { Label("People", systemImage: "person.2") }
             NavigationStack { SettingsView() }
                 .tabItem { Label("Settings", systemImage: "gear") }
         }
-        .onAppear { Notifier.requestAuthorization() }
+        .tint(Theme.accent)
+        .preferredColorScheme(appearance.colorScheme)
+        .onAppear {
+            Notifier.requestAuthorization()
+            KeyboardDismissal.install()
+        }
         .onChange(of: pendingCount, initial: true) { _, count in
             Notifier.updateBadge(count)
         }

@@ -56,6 +56,9 @@ struct EntryEditView: View {
     @State private var errorMessage: String?
     @State private var confirmingDelete = false
     @State private var didPrefill = false
+    @State private var showsDetails = false
+    @State private var showsAllCategories = false
+    @FocusState private var amountFocused: Bool
 
     init(mode: Mode, defaultAccount: Account? = nil) {
         self.mode = mode
@@ -158,68 +161,83 @@ struct EntryEditView: View {
                         .foregroundStyle(.secondary)
                         .textSelection(.enabled)
                 }
+                .cardRows()
             }
 
             Section {
-                Picker("Direction", selection: $flow) {
-                    Text("Money out").tag(Flow.moneyOut)
-                    Text("Money in").tag(Flow.moneyIn)
-                }
-                .pickerStyle(.segmented)
-                .disabled(isBankEntry)
+                amountHeader
+                    .listRowInsets(EdgeInsets(top: 4, leading: 0, bottom: 4, trailing: 0))
+            }
+            .listRowBackground(Color.clear)
 
-                if !isAdjustment {
-                    Picker("Type", selection: $purpose) {
-                        Text(flow == .moneyOut ? "Expense" : "Income").tag(Purpose.regular)
-                        Text("Debt").tag(Purpose.debt)
-                        Text("Transfer").tag(Purpose.transfer)
-                    }
-                    .pickerStyle(.segmented)
-                }
-            } footer: {
-                if !isAdjustment {
+            if !isAdjustment {
+                Section {
+                    purposeChips
+                        .listRowInsets(EdgeInsets())
+                } footer: {
                     Text(purposeHint)
+                        .frame(maxWidth: .infinity)
+                        .multilineTextAlignment(.center)
                 }
+                .listRowBackground(Color.clear)
             }
 
             Section {
-                TextField("Amount", text: $amountText)
-                    .keyboardType(.decimalPad)
-                    .disabled(isBankEntry)
-                DatePicker("Date", selection: $date)
+                if showsDetails || purpose == .transfer || isAdjustment || primaryAccount == nil {
+                    DatePicker("Date", selection: $date)
 
-                Picker(primaryLabel, selection: $primaryAccount) {
-                    Text("Choose…").tag(Account?.none)
-                    ForEach(activeAccounts) { account in
-                        Text(account.name).tag(Optional(account))
-                    }
-                }
-                .disabled(isBankEntry)
-
-                if purpose == .transfer && !isAdjustment {
-                    Picker(otherLabel, selection: $otherAccount) {
+                    Picker(primaryLabel, selection: $primaryAccount) {
                         Text("Choose…").tag(Account?.none)
-                        ForEach(activeAccounts.filter { $0 != primaryAccount }) { account in
+                        ForEach(activeAccounts) { account in
                             Text(account.name).tag(Optional(account))
+                        }
+                    }
+                    .disabled(isBankEntry)
+
+                    if purpose == .transfer && !isAdjustment {
+                        Picker(otherLabel, selection: $otherAccount) {
+                            Text("Choose…").tag(Account?.none)
+                            ForEach(activeAccounts.filter { $0 != primaryAccount }) { account in
+                                Text(account.name).tag(Optional(account))
+                            }
+                        }
+                    }
+                } else {
+                    Button {
+                        withAnimation { showsDetails = true }
+                    } label: {
+                        HStack {
+                            Label(detailsSummary, systemImage: primaryAccount?.kind.icon ?? "building.columns")
+                                .foregroundStyle(.primary)
+                            Spacer()
+                            Text("Change")
+                                .foregroundStyle(Theme.accent)
                         }
                     }
                 }
             }
+            .cardRows()
 
             if !isAdjustment {
                 switch purpose {
                 case .regular:
                     Section {
-                        Picker("Category", selection: $category) {
-                            Text("None").tag(EntryCategory?.none)
-                            ForEach(visibleCategories) { category in
-                                Label(category.name, systemImage: category.icon).tag(Optional(category))
-                            }
+                        CategoryGrid(
+                            categories: visibleCategories,
+                            selection: category,
+                            limit: showsAllCategories ? nil : 8,
+                            onMore: { withAnimation { showsAllCategories = true } }
+                        ) { selected in
+                            category = category == selected ? nil : selected
                         }
+                        .padding(.vertical, 6)
                         if let merchant, flow == .moneyOut {
                             Toggle("Always use this category for \(merchant.capitalized)", isOn: $rememberMerchant)
                         }
+                    } header: {
+                        Text("Category")
                     }
+                    .cardRows()
                 case .debt:
                     Section {
                         Picker("Person", selection: $person) {
@@ -230,10 +248,12 @@ struct EntryEditView: View {
                         }
                         if person == nil {
                             TextField("Name", text: $newPersonName)
+                                .textInputAutocapitalization(.words)
                         }
                     } footer: {
                         Text("The People tab shows who owes whom.")
                     }
+                    .cardRows()
                 case .transfer:
                     EmptyView()
                 }
@@ -242,6 +262,7 @@ struct EntryEditView: View {
             Section {
                 TextField("Note", text: $note, axis: .vertical)
             }
+            .cardRows()
 
             if !isAdding {
                 Section {
@@ -249,18 +270,44 @@ struct EntryEditView: View {
                         confirmingDelete = true
                     }
                 }
+                .cardRows()
             }
+        }
+        .themedBackground()
+        .scrollDismissesKeyboard(.interactively)
+        .safeAreaInset(edge: .bottom) {
+            Button(action: save) {
+                Text(saveTitle)
+                    .font(.headline)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 14)
+                    .foregroundStyle(.white)
+                    .background(Theme.accent, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 8)
+            .background(.bar)
         }
         .navigationTitle(title)
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
-            ToolbarItem(placement: .confirmationAction) {
-                Button(mode.isReview ? "Confirm" : "Save", action: save)
-            }
             if isAdding {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") { dismiss() }
                 }
+            }
+        }
+        .task {
+            guard isAdding else {
+                return
+            }
+            // Wait for the sheet to finish presenting, then open the keypad.
+            try? await Task.sleep(for: .milliseconds(450))
+            amountFocused = true
+        }
+        .onChange(of: errorMessage) { _, message in
+            if message != nil {
+                Haptics.warning()
             }
         }
         .alert("Can't save", isPresented: Binding(get: { errorMessage != nil }, set: { if !$0 { errorMessage = nil } })) {
@@ -291,6 +338,98 @@ struct EntryEditView: View {
                 self.category = nil
             }
         }
+    }
+
+    // MARK: - Pieces
+
+    private var parsedAmount: Decimal? {
+        Money.parse(amountText).flatMap { $0 > 0 ? $0 : nil }
+    }
+
+    private var saveTitle: String {
+        if mode.isReview {
+            return "Confirm"
+        }
+        guard let parsedAmount else {
+            return "Save"
+        }
+        return "Save \(parsedAmount.money())"
+    }
+
+    private var detailsSummary: String {
+        let account = primaryAccount?.name ?? "Choose account"
+        let day: String
+        if Calendar.current.isDateInToday(date) {
+            day = "Today"
+        } else if Calendar.current.isDateInYesterday(date) {
+            day = "Yesterday"
+        } else {
+            day = date.formatted(.dateTime.day().month(.abbreviated))
+        }
+        return "\(account) · \(day), \(date.formatted(date: .omitted, time: .shortened))"
+    }
+
+    private var amountHeader: some View {
+        VStack(spacing: 10) {
+            Picker("Direction", selection: $flow) {
+                Text("Out").tag(Flow.moneyOut)
+                Text("In").tag(Flow.moneyIn)
+            }
+            .pickerStyle(.segmented)
+            .frame(maxWidth: 180)
+            .disabled(isBankEntry)
+
+            HStack(alignment: .firstTextBaseline, spacing: 6) {
+                if isBankEntry {
+                    Image(systemName: "lock.fill")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                        .accessibilityLabel("Set by the bank message")
+                }
+                TextField("0.000", text: $amountText)
+                    .font(.system(size: 44, weight: .bold, design: .rounded))
+                    .monospacedDigit()
+                    .multilineTextAlignment(.center)
+                    .keyboardType(.decimalPad)
+                    .focused($amountFocused)
+                    .fixedSize()
+                    .disabled(isBankEntry)
+                    .foregroundStyle(flow == .moneyIn ? Theme.positive : Color.primary)
+                    .accessibilityLabel("Amount")
+                Text("JOD")
+                    .font(.headline)
+                    .foregroundStyle(.secondary)
+            }
+            .frame(maxWidth: .infinity)
+        }
+        .frame(maxWidth: .infinity)
+    }
+
+    private var purposeChips: some View {
+        HStack(spacing: 8) {
+            chip(flow == .moneyOut ? "Expense" : "Income", value: .regular)
+            chip(flow == .moneyOut ? "Lent / repaid" : "Borrowed / repaid", value: .debt)
+            chip("Transfer", value: .transfer)
+        }
+        .frame(maxWidth: .infinity)
+    }
+
+    private func chip(_ title: String, value: Purpose) -> some View {
+        let selected = purpose == value
+        return Button {
+            withAnimation(.snappy) { purpose = value }
+        } label: {
+            Text(title)
+                .font(.subheadline.weight(selected ? .semibold : .regular))
+                .lineLimit(1)
+                .minimumScaleFactor(0.8)
+                .foregroundStyle(selected ? Theme.background : Color.primary)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 8)
+                .background(selected ? Color.primary : Theme.card, in: Capsule())
+        }
+        .buttonStyle(.plain)
+        .accessibilityAddTraits(selected ? .isSelected : [])
     }
 
     // MARK: - Actions
@@ -412,6 +551,7 @@ struct EntryEditView: View {
     }
 
     private func finish() {
+        Haptics.success()
         try? context.save()
         MessageIngestor.refreshBadge(context)
         dismiss()

@@ -76,8 +76,41 @@ enum Ledger {
         return "Settled"
     }
 
+    /// When the current open debt with this person started: the first entry after the balance was last zero.
+    static func debtOpenedAt(for person: Person, in entries: [LedgerEntry]) -> Date? {
+        var running: Decimal = 0
+        var openedAt: Date?
+        let personal = entries
+            .filter { $0.person == person && $0.status != .reversed && ($0.kind == .debtGiven || $0.kind == .debtReceived) }
+            .sorted { $0.date < $1.date }
+        for entry in personal {
+            if running == 0 {
+                openedAt = entry.date
+            }
+            running += entry.kind == .debtGiven ? entry.amount : -entry.amount
+            if running == 0 {
+                openedAt = nil
+            }
+        }
+        return openedAt
+    }
+
+    /// Records a repayment that brings this person's balance to zero.
+    @MainActor
+    static func settleUp(_ person: Person, balance: Decimal, account: Account, context: ModelContext) {
+        guard balance != 0 else {
+            return
+        }
+        let entry = LedgerEntry(kind: balance > 0 ? .debtReceived : .debtGiven, amount: abs(balance), date: .now)
+        context.insert(entry)
+        entry.account = account
+        entry.person = person
+        entry.note = "Settled up"
+        try? context.save()
+    }
+
     static func debtColor(_ balance: Decimal) -> Color {
-        balance > 0 ? .green : balance < 0 ? .red : .secondary
+        balance > 0 ? Theme.positive : balance < 0 ? Theme.accent : .secondary
     }
 
     /// Deletes an entry, its reversal partner, and the records that would block re-importing its message.
@@ -213,11 +246,10 @@ extension LedgerEntry {
 
     var tint: Color {
         switch kind {
-        case .expense: return .red
-        case .income: return .green
-        case .transfer: return .blue
-        case .debtGiven, .debtReceived: return .purple
-        case .adjustment: return .gray
+        case .expense: return Theme.accent
+        case .income: return Theme.positive
+        case .transfer, .adjustment: return Theme.neutral
+        case .debtGiven, .debtReceived: return Brand.blend
         }
     }
 
