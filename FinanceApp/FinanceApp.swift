@@ -5,9 +5,30 @@ import SwiftUI
 struct FinanceApp: App {
     var body: some Scene {
         WindowGroup {
-            RootView()
+            LaunchContainer()
         }
         .modelContainer(AppDatabase.container)
+    }
+}
+
+/// Shows the splash with the maker's seal briefly, then fades into the app.
+struct LaunchContainer: View {
+    @State private var showsSplash = true
+
+    var body: some View {
+        ZStack {
+            RootView()
+            if showsSplash {
+                SplashView()
+                    .transition(.opacity)
+            }
+        }
+        .task {
+            try? await Task.sleep(for: .seconds(1.2))
+            withAnimation(.easeOut(duration: 0.4)) {
+                showsSplash = false
+            }
+        }
     }
 }
 

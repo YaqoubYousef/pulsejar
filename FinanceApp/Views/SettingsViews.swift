@@ -63,6 +63,11 @@ struct SettingsView: View {
             } footer: {
                 Text("Everything is stored only on this iPhone. Export a backup to Files now and then — deleting the app deletes its data.")
             }
+
+            Section {
+                MakerFooter()
+                    .listRowBackground(Color.clear)
+            }
         }
         .navigationTitle("Settings")
         .fileExporter(isPresented: $exporting, document: exportDocument, contentType: .json, defaultFilename: backupFilename) { result in

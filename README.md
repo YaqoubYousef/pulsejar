@@ -1,4 +1,4 @@
-# Finance
+# PulseJar
 
 A personal iPhone finance app. All data stays on the phone (SwiftData), with no server.
 

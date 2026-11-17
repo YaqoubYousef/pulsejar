@@ -113,7 +113,7 @@ struct HomeView: View {
                 }
             }
         }
-        .navigationTitle("Finance")
+        .navigationTitle("PulseJar")
         .navigationDestination(for: Account.self) { account in
             AccountDetailView(account: account)
         }
