@@ -1,0 +1,176 @@
+import SwiftData
+import SwiftUI
+
+struct AccountDetailView: View {
+    let account: Account
+
+    @Environment(\.modelContext) private var context
+    @Query(sort: \LedgerEntry.date, order: .reverse) private var entries: [LedgerEntry]
+    @State private var editing = false
+    @State private var addingEntry = false
+
+    private var accountEntries: [LedgerEntry] {
+        entries.filter { $0.account == account || $0.toAccount == account }
+    }
+
+    var body: some View {
+        List {
+            Section {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(account.kind.title + (account.bankMask.map { " · \($0)" } ?? ""))
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                    Text(Ledger.balance(of: account, in: entries).money(account.currency))
+                        .font(.largeTitle.bold())
+                        .monospacedDigit()
+                }
+                .padding(.vertical, 4)
+            }
+
+            if let mismatch = Ledger.mismatch(for: account, in: entries) {
+                Section {
+                    VStack(alignment: .leading, spacing: 6) {
+                        Label("Doesn't match the bank", systemImage: "exclamationmark.triangle.fill")
+                            .foregroundStyle(.yellow)
+                            .font(.headline)
+                        Text("On \(mismatch.date.formatted(date: .abbreviated, time: .shortened)) the bank said \(mismatch.bankBalance.money()), but the app shows \(mismatch.appBalance.money()). A message may be missing — paste it in Settings → Paste bank messages, or match the bank balance.")
+                            .font(.footnote)
+                    }
+                    Button("Match bank balance") {
+                        let adjustment = LedgerEntry(kind: .adjustment, amount: mismatch.bankBalance - mismatch.appBalance, date: mismatch.date)
+                        context.insert(adjustment)
+                        adjustment.account = account
+                        adjustment.note = "Matched to the bank balance"
+                        try? context.save()
+                    }
+                }
+            }
+
+            Section("Transactions") {
+                if accountEntries.isEmpty {
+                    Text("No transactions yet.")
+                        .foregroundStyle(.secondary)
+                }
+                ForEach(accountEntries) { entry in
+                    EntryLink(entry: entry, perspective: account)
+                }
+            }
+        }
+        .navigationTitle(account.name)
+        .toolbar {
+            ToolbarItemGroup(placement: .primaryAction) {
+                Button {
+                    addingEntry = true
+                } label: {
+                    Image(systemName: "plus")
+                }
+                Button("Edit") { editing = true }
+            }
+        }
+        .sheet(isPresented: $editing) {
+            NavigationStack { AccountEditView(account: account) }
+        }
+        .sheet(isPresented: $addingEntry) {
+            NavigationStack { EntryEditView(mode: .add, defaultAccount: account) }
+        }
+    }
+}
+
+struct AccountEditView: View {
+    let account: Account?
+
+    @Environment(\.modelContext) private var context
+    @Environment(\.dismiss) private var dismiss
+    @Query private var accounts: [Account]
+
+    @State private var name: String
+    @State private var kind: AccountKind
+    @State private var bankMask: String
+    @State private var openingText: String
+    @State private var isArchived: Bool
+    @State private var confirmingDelete = false
+
+    init(account: Account?) {
+        self.account = account
+        _name = State(initialValue: account?.name ?? "")
+        _kind = State(initialValue: account?.kind ?? .bank)
+        _bankMask = State(initialValue: account?.bankMask ?? "")
+        _openingText = State(initialValue: Money.editableText(account?.openingBalance ?? 0))
+        _isArchived = State(initialValue: account?.isArchived ?? false)
+    }
+
+    var body: some View {
+        Form {
+            Section {
+                TextField("Name", text: $name)
+                Picker("Type", selection: $kind) {
+                    ForEach(AccountKind.allCases) { kind in
+                        Label(kind.title, systemImage: kind.icon).tag(kind)
+                    }
+                }
+            }
+            Section {
+                TextField("Account number in messages, e.g. 1600*1380", text: $bankMask)
+                    .textInputAutocapitalization(.never)
+                    .autocorrectionDisabled()
+            } footer: {
+                Text("Bank messages with this number are recorded in this account. Leave empty for cash.")
+            }
+            Section {
+                TextField("Opening balance", text: $openingText)
+                    .keyboardType(.decimalPad)
+            } footer: {
+                Text("The balance before the first transaction in the app. For accounts created from a bank message this is set automatically.")
+            }
+            if account != nil {
+                Section {
+                    Toggle("Hide account", isOn: $isArchived)
+                    Button("Delete account", role: .destructive) {
+                        confirmingDelete = true
+                    }
+                }
+            }
+        }
+        .navigationTitle(account == nil ? "New account" : "Edit account")
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .cancellationAction) {
+                Button("Cancel") { dismiss() }
+            }
+            ToolbarItem(placement: .confirmationAction) {
+                Button("Save", action: save)
+                    .disabled(name.trimmed.isEmpty)
+            }
+        }
+        .confirmationDialog("Delete this account?", isPresented: $confirmingDelete, titleVisibility: .visible) {
+            Button("Delete account and its transactions", role: .destructive) {
+                if let account {
+                    context.delete(account)
+                    try? context.save()
+                    MessageIngestor.refreshBadge(context)
+                }
+                dismiss()
+            }
+        } message: {
+            Text("Its transactions are deleted too. This can't be undone. Use \"Hide account\" to keep the history.")
+        }
+    }
+
+    private func save() {
+        let target: Account
+        if let account {
+            target = account
+        } else {
+            target = Account(name: name.trimmed, kind: kind, sortOrder: (accounts.map(\.sortOrder).max() ?? 0) + 1)
+            context.insert(target)
+        }
+        target.name = name.trimmed
+        target.kind = kind
+        let mask = bankMask.filter { !$0.isWhitespace }
+        target.bankMask = mask.isEmpty ? nil : mask
+        target.openingBalance = Money.parse(openingText) ?? 0
+        target.isArchived = isArchived
+        try? context.save()
+        dismiss()
+    }
+}
